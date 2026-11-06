@@ -53,7 +53,7 @@ https://raw.githubusercontent.com/ming-a1/harness-hub/main/plugin-market.json
 固定版本索引（与本次发布内容一一对应）：
 
 ```text
-https://raw.githubusercontent.com/ming-a1/harness-hub/db9dfe0114394936507f64729f7c1c5fccf72576/plugin-market.json
+https://raw.githubusercontent.com/ming-a1/harness-hub/3709c1a61b89d0ff942184232812b0921405f2f8/plugin-market.json
 ```
 
 仓库：<https://github.com/ming-a1/harness-hub>
