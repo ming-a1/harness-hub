@@ -1,0 +1,41 @@
+{
+  "name": "@local/harness-hub",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plugin Hub panel for DeepSeek Harness: one sidebar entry with Session Cleanup, Skill Gallery and Token Vault tabs, plus their Host routes and tools.",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "bundle",
+    "skills",
+    "session-cleanup",
+    "token-vault"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "host/*.js",
+    "lib/*.js",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}
