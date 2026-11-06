@@ -1,26 +1,23 @@
 # 插件集成（Plugin Hub）
 
-一个把多个 DSH 插件合成一个面板的集成插件，标签页顺序：**会话清理 → 技能 → 令牌库 → 插件**（默认打开会话清理）。
+一个把多个 DSH 插件合成一个面板的集成插件：**会话清理 → 技能 → 令牌库**，其后自动追加其它插件的面板（例如「IM 机器人控制台」），默认打开会话清理。
 
 | 标签页 | 内容 |
 | --- | --- |
 | 会话清理 | `@local/session-cleanup` 的面板与 `/session-cleanup/*` 路由、`session_cleanup` 工具 |
 | 技能 | `@local/skill-gallery` 的技能卡片与 `/skill-gallery/*` 路由 |
 | 令牌库 | `@local/token-vault` 的 Host 路线（`/token-vault/*` 与 `token_vault`、`vault_sh` 工具），界面由本插件重写 |
-| 插件 | 其它插件注册到侧边栏的面板，点击即可打开 |
+| （自动追加） | 其它插件注册到侧边栏 + `main` 的面板，按 order 排在令牌库之后，内容直接内嵌 |
 
-## 收集侧边栏面板
+## 把其它插件的面板并进来
 
-**只收集第三方插件**，官方面板（插件管理 `plugins`、自动化任务 `schedules`）保持原样、既不收集也不隐藏：
+侧栏只保留「插件集成」一个入口，其它插件注册的面板直接变成集成页里的**并列页签**：
 
-- **动态发现**：`ctx.slots.entriesOfSlot('sidebar.panellist')` 读取侧栏面板注册项，`ctx.slots.subscribe('sidebar.panellist', …)` 订阅增删；新装插件新增的侧栏按钮会立刻出现在「插件」页签，无需刷新。官方 id 名单在 `createPanelStore` 的 `official` 集合里，宿主新增官方面板时在这里补一个 id。
-- **按行隐藏**：`shell.overlay` 里的一个纯样式条目，按每个被收集面板当前的 `aria-label` 生成逐行规则（`nav:has(> button svg[data-hub-glyph]) > button[aria-label="…"]:not(:has(svg[data-hub-glyph])){display:none!important}`），因此只会隐藏被收进「插件」页签的那些行。没有第三方面板时不输出任何规则，「插件」页签也随之隐藏。
-- **打开方式**：点击行调用 `ctx.layout.selectPanel(id)` 切到该面板；「插件集成」图标始终留在侧边栏，点它即可回到集成页。
-- 若运行环境没有 `entriesOfSlot`，本插件不会输出隐藏规则，侧边栏行为完全不变（功能自动降级）。
-
-容错：整页、每个页签、每个收集来的图标都包在 `ErrorBoundary` 里。某个页签或某个插件的图标渲染失败时，只该处显示「这个面板暂时不可用」和错误文本，其余页签照常可用，不会再整页空白（此前把服务方法直接当 store 传给 `useSyncExternalStore`，渲染抛错导致整页被宿主移出，就是空白的原因）。
-
-已知边界：隐藏规则依赖宿主侧栏的 `nav > button > span > svg` 结构、按钮的 `aria-label` 与 `:has()` 支持（Chromium 105+/Safari 15.4+/Firefox 121+）；宿主改结构时按钮会重新出现，但「插件」页签仍可用。收集范围只限 `sidebar.panellist`，不涉及设置分区、头部按钮等其它注册点。
+- **发现**：`ctx.slots.entriesOfSlot('sidebar.panellist')` 拿侧栏按钮，`ctx.slots.entriesOfSlot('main')` 按同一个 id 找到对应的主面板条目；两者都在才算一个可内嵌面板。订阅 `sidebar.panellist` 与 `main` 两个槽，装/卸插件即刻增删页签，无需刷新。
+- **内嵌渲染**：插槽渲染器不对外提供「渲染别人的条目」的入口，所以本插件按渲染器的组合同样合成 props——本页拿到的标准 props（`useSessions`、`useWorkspaces` 等原样透传）+ 条目自己的 `locale` 译器、`store`（`StoreHandle.create()` 得到实例后提供 `useStore`/`actions`）、`inject` 面（含 `hooks` 自动转成 `use<Name>`）。缓存只存这些派生项，标准 props 每次渲染重新透传。
+- **官方插件不动**：`createPanelStore` 里的 `official` 集合（`plugins`、`schedules`）既不收集也不隐藏。宿主新增官方面板时在这里补 id。
+- **隐藏被收集的行**：`shell.overlay` 里的样式条目按每个被收集面板当前的 `aria-label` 生成逐行规则，只隐藏已并进来的那几个；没有第三方插件时零输出、零副作用。
+- **降级**：面板若声明了子插槽（需要渲染器自己的 `renderSlot`），无法内嵌，页签里给出「单独打开」按钮走宿主原生面板；内嵌渲染抛错时由错误边界兜住，同一页签显示错误文本 + 「单独打开」，其余页签不受影响。
 
 ## 组成
 

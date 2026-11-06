@@ -1,9 +1,9 @@
 {
   "name": "@local/harness-hub",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
-  "description": "Plugin Hub panel for DeepSeek Harness: one sidebar entry with Session Cleanup, Skill Gallery and Token Vault tabs, plus their Host routes and tools.",
+  "description": "Plugin Hub for DeepSeek Harness: one sidebar entry whose tabs carry session cleanup, the skill gallery, the token vault and every other plugin panel collected from the sidebar.",
   "keywords": [
     "deepseek-harness",
     "dsh",

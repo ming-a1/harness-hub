@@ -89,12 +89,9 @@ window.__ModuleLoader__.load({
       'tab.cleanup': '会话清理',
       'tab.skills': '技能',
       'tab.vault': '令牌库',
-      'tab.plugins': '插件',
-      'panels.title': '插件面板',
-      'panels.lead': '其它插件在侧栏注册的面板都收在这里，点一下就能打开；侧栏只保留「插件集成」一个入口。',
-      'panels.empty': '还没有其它插件面板。',
-      'panels.open': '打开',
       'panels.paneCrashed': '这一页渲染出错，插件集成仍可使用。',
+      'embed.unsupported': '这个面板需要宿主自己渲染（它声明了子插槽），这里无法直接内嵌。',
+      'embed.openStandalone': '单独打开',
       'crash.title': '这个面板暂时不可用',
       'crash.hint': '插件集成捕获了渲染错误，其余页签仍可使用；刷新页面可重试。',
 
@@ -144,12 +141,9 @@ window.__ModuleLoader__.load({
       'tab.cleanup': 'Sessions',
       'tab.skills': 'Skills',
       'tab.vault': 'Tokens',
-      'tab.plugins': 'Plugins',
-      'panels.title': 'Plugin panels',
-      'panels.lead': 'Sidebar panels that other plugins register are collected here and open in one click; the sidebar keeps the single Hub entry.',
-      'panels.empty': 'No other plugin panels yet.',
-      'panels.open': 'Open',
       'panels.paneCrashed': 'This tab failed to render; the hub keeps working.',
+      'embed.unsupported': 'This panel needs the host renderer (it declares child slots) and cannot be embedded here.',
+      'embed.openStandalone': 'Open on its own',
       'crash.title': 'This panel is unavailable',
       'crash.hint': 'The hub caught a render error; other tabs keep working. Refresh to retry.',
 
@@ -283,23 +277,113 @@ window.__ModuleLoader__.load({
 
 '''
 
-TAIL = r'''    /** Every other plugin's sidebar panel, kept in sync with the slot registry. */
+TAIL = r'''    /** Selector hook factory for one observable source, cached per source. */
+    const hookCache = new WeakMap();
+
+    function bindSnapshotSelector(source) {
+      let hook = hookCache.get(source);
+      if (hook === undefined) {
+        hook = (selector, equal) => {
+          const value = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
+          if (typeof selector !== 'function') return value;
+          const next = selector(value);
+          return equal ? next : next;
+        };
+        hookCache.set(source, hook);
+      }
+      return hook;
+    }
+
+    /** Per-entry store instance and inject result, so a tab render never re-mints them. */
+    const kitCache = new WeakMap();
+
+    /** A StoreHandle or StoreFactory turned into one live store instance. */
+    function storeInstanceOf(store) {
+      try {
+        const handle = typeof store === 'function' ? store() : store;
+        if (handle === null || typeof handle !== 'object' || typeof handle.create !== 'function') return undefined;
+        return handle.create();
+      } catch {
+        return undefined;
+      }
+    }
+
+    /**
+     * Extra props for a panel another plugin registered on `main`.
+     *
+     * The slot renderer composes these for its own entries; a plugin cannot ask
+     * it to render someone else's entry, so an embedded panel gets the same
+     * standard props we were given, plus its own locale seat, store pair and
+     * inject face. Only these extras are cached — the standard props arrive
+     * fresh on every render and must not be frozen into the cache.
+     */
+    function embedExtras(ctx, entry) {
+      const cached = kitCache.get(entry);
+      if (cached !== undefined) return cached;
+      const extras = { unsupported: false };
+      try {
+        if (entry.store !== undefined) {
+          const store = storeInstanceOf(entry.store);
+          if (store !== undefined) {
+            extras.useStore = bindSnapshotSelector(store);
+            extras.actions = store.actions;
+          }
+        }
+        if (typeof entry.inject === 'function') {
+          const injected = extras.actions === undefined ? entry.inject() : entry.inject(extras.actions);
+          if (injected !== null && typeof injected === 'object') {
+            const hooks = injected.hooks;
+            for (const [name, value] of Object.entries(injected)) {
+              if (name === 'hooks' || name === 'keyedHooks') continue;
+              extras[name] = value;
+            }
+            if (hooks !== null && typeof hooks === 'object') {
+              for (const [name, source] of Object.entries(hooks)) {
+                if (source === null || typeof source !== 'object') continue;
+                extras['use' + name.charAt(0).toUpperCase() + name.slice(1)] = bindSnapshotSelector(source);
+              }
+            }
+          }
+        }
+        if (typeof entry.locale === 'string' && entry.locale !== '') {
+          extras.t = ctx.locale.bind(entry.locale);
+        }
+      } catch {
+        // A panel whose inject fails still renders with the standard props.
+      }
+      // A panel that declares child slots needs the renderer's own binding, which
+      // is not reachable from here; that panel keeps a "open it on its own" row.
+      extras.unsupported = entry.children !== undefined;
+      kitCache.set(entry, extras);
+      return extras;
+    }
+
+    /** Everything another plugin put on the sidebar, paired with its `main` panel. */
     function createPanelStore(ctx) {
       let snapshot = [];
       const listeners = new Set();
-      const available = typeof ctx.slots.entriesOfSlot === 'function';
+      const available =
+        typeof ctx.slots.entriesOfSlot === 'function' && typeof ctx.slots.subscribe === 'function';
       // Shipped panels stay where the host put them; only panels other plugins
       // add are collected and hidden here. Extend this list for a new host panel.
       const official = new Set(['plugins', 'schedules']);
       const read = () => {
         const rows = [];
         if (!available) return rows;
+        const panels = new Map();
+        for (const entry of ctx.slots.entriesOfSlot('main')) {
+          const key = entry?.options?.key;
+          if (typeof key === 'string' && key !== '') panels.set(key, entry);
+        }
         const seen = new Set();
         for (const entry of ctx.slots.entriesOfSlot('sidebar.panellist')) {
           const id = entry?.options?.id;
           if (typeof id !== 'string' || id === '' || id === HUB_ID || official.has(id) || seen.has(id)) continue;
+          const panel = panels.get(id);
+          // A sidebar button without a matching main panel has nothing to embed.
+          if (panel === undefined) continue;
           seen.add(id);
-          rows.push({ id, order: entry.options.order ?? 0, label: entry.options.label, icon: entry.component });
+          rows.push({ id, order: entry.options.order ?? 0, label: entry.options.label, panel });
         }
         rows.sort((left, right) => left.order - right.order);
         return rows;
@@ -308,9 +392,7 @@ TAIL = r'''    /** Every other plugin's sidebar panel, kept in sync with the slo
         left.length === right.length &&
         left.every((row, index) => {
           const other = right[index];
-          return (
-            row.id === other.id && row.order === other.order && row.icon === other.icon && row.label === other.label
-          );
+          return row.id === other.id && row.order === other.order && row.panel === other.panel;
         });
       return {
         available,
@@ -367,17 +449,28 @@ TAIL = r'''    /** Every other plugin's sidebar panel, kept in sync with the slo
       };
     }
 
-    /** Switch the main column to one collected panel, keeping the hub reachable. */
-    function openPanel(ctx, id) {
-      try {
-        ctx.layout?.selectPanel(id);
-      } catch {
-        // the hub stays visible when a panel cannot be selected
+    /** Render one collected panel, or explain why it has to open on its own. */
+    function CollectedPane({ ctx, row, slot, t }) {
+      const entry = row.panel;
+      const extras = embedExtras(ctx, entry);
+      if (extras.unsupported || typeof entry.component !== 'function') {
+        return h(
+          'div',
+          { className: 'hub-panels-inner' },
+          h('h2', null, panelLabel(row.label, row.id)),
+          h('p', null, t('embed.unsupported')),
+          h(
+            'button',
+            { type: 'button', className: 'hub-panel-row', onClick: () => openPanel(ctx, row.id) },
+            h('span', { className: 'hub-panel-name' }, t('embed.openStandalone')),
+          ),
+        );
       }
+      return h(entry.component, { ...slot, ...extras });
     }
 
     /** Fallback a crashed pane renders instead of blanking the panel. */
-    function crashedPane(t) {
+    function crashedPane(t, ctx, row) {
       return (error) =>
         h(
           'div',
@@ -385,80 +478,44 @@ TAIL = r'''    /** Every other plugin's sidebar panel, kept in sync with the slo
           h('strong', null, t('panels.paneCrashed')),
           h('span', null, t('crash.hint')),
           h('code', null, String((error && error.message) || error)),
+          row === undefined
+            ? null
+            : h(
+                'button',
+                { type: 'button', className: 'hub-panel-row', onClick: () => openPanel(ctx, row.id) },
+                h('span', { className: 'hub-panel-name' }, t('embed.openStandalone')),
+              ),
         );
     }
 
-    /** The panels other plugins contributed to the sidebar, as hub rows. */
-    function PanelIndex({ rows, onOpen, t, slot }) {
-      const hookProps = {};
-      if (slot !== null && typeof slot === 'object') {
-        for (const [key, value] of Object.entries(slot)) {
-          if (key.startsWith('use') && typeof value === 'function') hookProps[key] = value;
-        }
-      }
-      return h(
-        'div',
-        { className: 'hub-panels' },
-        h(
-          'div',
-          { className: 'hub-panels-inner' },
-          h('h2', null, t('panels.title')),
-          h('p', null, t('panels.lead')),
-          rows.length === 0
-            ? h('p', { className: 'hub-panel-empty' }, t('panels.empty'))
-            : h(
-                'ul',
-                { className: 'hub-panel-list' },
-                rows.map((row) =>
-                  h(
-                    'li',
-                    { key: row.id },
-                    h(
-                      'button',
-                      { type: 'button', className: 'hub-panel-row', onClick: () => onOpen(row.id) },
-                      h(
-                        'span',
-                        { className: 'hub-panel-icon' },
-                        row.icon === undefined || row.icon === null
-                          ? null
-                          : h(
-                              HubErrorBoundary,
-                              { fallback: null },
-                              h(row.icon, { size: 18, active: false, ...hookProps }),
-                            ),
-                      ),
-                      h('span', { className: 'hub-panel-name' }, panelLabel(row.label, row.id)),
-                      h('span', { className: 'hub-panel-open' }, t('panels.open')),
-                    ),
-                  ),
-                ),
-              ),
-        ),
-      );
+    /** The panels other plugins contributed, as extra hub tabs. */
+    function collectedTabs(ctx, t, rows) {
+      return rows.map((row) => ({
+        id: row.id,
+        label: () => panelLabel(row.label, row.id),
+        render: (slot) => h(CollectedPane, { ctx, row, slot, t }),
+        row,
+      }));
     }
 
     function createHubPage(parts, t, ctx, panels) {
-      const tabs = [
+      const baseTabs = [
         {
           id: 'cleanup',
+          label: () => t('tab.cleanup'),
           render: (slot) => h(parts.cleanup.Page, { ...slot, ...parts.cleanup.props, t: parts.cleanup.t }),
         },
-        { id: 'skills', render: (slot) => h(parts.skills.Page, { ...slot, t: parts.skills.t }) },
-        { id: 'vault', render: () => h(VaultPane, { t }) },
-        {
-          id: 'plugins',
-          render: (slot, rows) => h(PanelIndex, { rows, onOpen: (id) => openPanel(ctx, id), t, slot }),
-        },
+        { id: 'skills', label: () => t('tab.skills'), render: (slot) => h(parts.skills.Page, { ...slot, t: parts.skills.t }) },
+        { id: 'vault', label: () => t('tab.vault'), render: () => h(VaultPane, { t }) },
       ];
 
       return function HarnessHubPage(props) {
-        const [active, setActive] = useState(tabs[0].id);
+        const [active, setActive] = useState('cleanup');
         // Collected panels come from the live slot registry, so installing a
         // plugin that adds a sidebar panel shows up here without a reload.
         const rows = useSyncExternalStore(panels.subscribe, panels.getSnapshot);
-        // No third-party panel means no empty tab to offer.
-        const visibleTabs = rows.length === 0 ? tabs.filter((tab) => tab.id !== 'plugins') : tabs;
-        const currentTab = visibleTabs.some((tab) => tab.id === active) ? active : visibleTabs[0].id;
+        const tabs = [...baseTabs, ...collectedTabs(ctx, t, rows)];
+        const current = tabs.some((tab) => tab.id === active) ? active : tabs[0].id;
         // The slot hands the page its standard selector hooks (useSessions,
         // useWorkspaces, ...); every section receives them, and its own bound
         // translator wins over the hub's.
@@ -474,18 +531,18 @@ TAIL = r'''    /** Every other plugin's sidebar panel, kept in sync with the slo
             h(
               'div',
               { className: 'hub-tabs', role: 'tablist' },
-              visibleTabs.map((tab) =>
+              tabs.map((tab) =>
                 h(
                   'button',
                   {
                     key: tab.id,
                     type: 'button',
                     role: 'tab',
-                    'aria-selected': tab.id === currentTab,
-                    className: tab.id === currentTab ? 'hub-tab hub-tab-active' : 'hub-tab',
+                    'aria-selected': tab.id === current,
+                    className: tab.id === current ? 'hub-tab hub-tab-active' : 'hub-tab',
                     onClick: () => setActive(tab.id),
                   },
-                  t('tab.' + tab.id),
+                  tab.label(),
                 ),
               ),
             ),
@@ -495,11 +552,11 @@ TAIL = r'''    /** Every other plugin's sidebar panel, kept in sync with the slo
             { className: 'hub-body' },
             // Every pane stays mounted so switching tabs keeps search, filters,
             // draft text and scroll positions; only the active one is displayed.
-            visibleTabs.map((tab) =>
+            tabs.map((tab) =>
               h(
                 'div',
-                { key: tab.id, className: tab.id === currentTab ? 'hub-pane' : 'hub-pane hub-pane-hidden' },
-                h(HubErrorBoundary, { fallback: crashedPane(t) }, tab.render(slot, rows)),
+                { key: tab.id, className: tab.id === current ? 'hub-pane' : 'hub-pane hub-pane-hidden' },
+                h(HubErrorBoundary, { fallback: crashedPane(t, ctx, tab.row) }, tab.render(slot)),
               ),
             ),
           ),
@@ -524,15 +581,14 @@ TAIL = r'''    /** Every other plugin's sidebar panel, kept in sync with the slo
       };
       const panels = createPanelStore(ctx);
       ctx.effect(() => {
-        const offSlot =
-          typeof ctx.slots.subscribe === 'function'
-            ? ctx.slots.subscribe('sidebar.panellist', () => panels.refresh())
-            : () => {};
-        // Labels are thunks, so a locale switch re-renders the collected rows.
+        const offPanels = ctx.slots.subscribe('sidebar.panellist', () => panels.refresh());
+        const offMain = ctx.slots.subscribe('main', () => panels.refresh());
+        // Labels are thunks, so a locale switch re-renders the collected tabs.
         const offLocale = ctx.locale.subscribe(() => panels.refresh(true));
         panels.refresh();
         return () => {
-          offSlot();
+          offPanels();
+          offMain();
           offLocale();
         };
       }, 'harness-hub: collected sidebar panels');
