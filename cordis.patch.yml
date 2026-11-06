@@ -1,15 +1,6 @@
-# The hub replaces the three standalone feature bundles: their rows stay in the
-# profile (and can be re-enabled), but only the hub's row is active, so one
-# panel carries all three features instead of three separate entries.
-- id: skill-gallery
-  name: '@local/skill-gallery'
-  disabled: true
-- id: session-cleanup
-  name: '@local/session-cleanup'
-  disabled: true
-- id: token-vault
-  name: '@local/token-vault'
-  disabled: true
+# The hub is an additive shell: it inserts one row and leaves every other plugin
+# row alone, so installing or removing a plugin immediately adds or removes its
+# tab in the hub.
 - insert:
     - id: harness-hub
       name: '@local/harness-hub'
