@@ -1,17 +1,16 @@
 {
   "name": "@local/harness-hub",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Plugin Hub for DeepSeek Harness: one sidebar entry whose tabs carry session cleanup, the skill gallery, the token vault and every other plugin panel collected from the sidebar.",
+  "description": "Plugin Hub for DeepSeek Harness: one sidebar entry whose tabs are the panels other installed plugins contribute, loaded dynamically and never copied.",
   "keywords": [
     "deepseek-harness",
     "dsh",
     "plugin",
     "bundle",
-    "skills",
-    "session-cleanup",
-    "token-vault"
+    "hub",
+    "tabs"
   ],
   "exports": {
     ".": "./index.js",
@@ -23,8 +22,6 @@
     "index.js",
     "client.js",
     "cordis.patch.yml",
-    "host/*.js",
-    "lib/*.js",
     "locale/*.json",
     "icon.svg",
     "README.md"
