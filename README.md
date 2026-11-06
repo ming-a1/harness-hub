@@ -45,6 +45,18 @@ python3 harness-hub/tools/assemble-client.py   # 读取 ../skill-gallery、../se
 
 ## 安装
 
-```bash
-# 由 dsh 的 plugin_manager 安装该目录为 bundle
+本机开发目录可直接由 `plugin_manager` 以 `install_bundle` 安装（bundle 会被 link 进 profile）。
+
+## 从插件市场安装 / 更新
+
+```text
+https://raw.githubusercontent.com/ming-a1/harness-hub/main/plugin-market.json
 ```
+
+固定版本索引（与本次发布内容一一对应）：
+
+```text
+https://raw.githubusercontent.com/ming-a1/harness-hub/db9dfe0114394936507f64729f7c1c5fccf72576/plugin-market.json
+```
+
+仓库：<https://github.com/ming-a1/harness-hub>

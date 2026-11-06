@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Plugin hub market",
+    "zh": "插件集成插件源"
+  },
+  "description": {
+    "en": "A plugin index for the DeepSeek Harness harness-hub bundle.",
+    "zh": "插件集成（Plugin Hub）插件的索引源。"
+  },
+  "metadata": {
+    "categories": {},
+    "labels": {},
+    "sortKeys": {}
+  },
+  "plugins": [
+    {
+      "name": "@local/harness-hub",
+      "title": {
+        "en": "Plugin Hub",
+        "zh": "插件集成"
+      },
+      "description": {
+        "en": "One entry with three tabs — Session Cleanup, Skill Gallery and Token Vault: archive or delete sessions, browse and uninstall installed skills, and store tokens locally.",
+        "zh": "一个入口三个页签：会话清理、技能、令牌库。统一归档或删除会话、浏览与卸载已安装技能、在本机保存令牌。"
+      },
+      "icon": "https://raw.githubusercontent.com/ming-a1/harness-hub/db9dfe0114394936507f64729f7c1c5fccf72576/icon.svg",
+      "author": "ming-a1",
+      "homepage": "https://github.com/ming-a1/harness-hub",
+      "repository": {
+        "url": "https://github.com/ming-a1/harness-hub"
+      },
+      "metadata": {
+        "keywords": [
+          "deepseek-harness",
+          "dsh",
+          "plugin",
+          "bundle",
+          "skills",
+          "session-cleanup",
+          "token-vault"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.1.0",
+          "publishTimestamp": 1793929945,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ming-a1/harness-hub",
+            "commit": "db9dfe0114394936507f64729f7c1c5fccf72576"
+          },
+          "engines": {}
+        }
+      ]
+    }
+  ]
+}
