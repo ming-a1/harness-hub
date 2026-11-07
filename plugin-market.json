@@ -24,7 +24,7 @@
         "en": "One entry with three tabs — Session Cleanup, Skill Gallery and Token Vault: archive or delete sessions, browse and uninstall installed skills, and store tokens locally.",
         "zh": "一个入口三个页签：会话清理、技能、令牌库。统一归档或删除会话、浏览与卸载已安装技能、在本机保存令牌。"
       },
-      "icon": "https://raw.githubusercontent.com/ming-a1/harness-hub/edfe4e61c9b05bbd51fe08d029847930642b4a61/icon.svg",
+      "icon": "https://raw.githubusercontent.com/ming-a1/harness-hub/e7b1673ee8a48d70f076654745586702e8d30d35/icon.svg",
       "author": "ming-a1",
       "homepage": "https://github.com/ming-a1/harness-hub",
       "repository": {
@@ -42,12 +42,12 @@
       },
       "versions": [
         {
-          "version": "2.0.1",
-          "publishTimestamp": 1794032279,
+          "version": "2.0.2",
+          "publishTimestamp": 1794032649,
           "source": {
             "type": "git",
             "url": "https://github.com/ming-a1/harness-hub",
-            "commit": "edfe4e61c9b05bbd51fe08d029847930642b4a61"
+            "commit": "e7b1673ee8a48d70f076654745586702e8d30d35"
           },
           "engines": {}
         }
