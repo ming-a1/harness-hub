@@ -240,6 +240,21 @@ window.__ModuleLoader__.load({
         rows.sort((left, right) => left.order - right.order);
         return rows;
       };
+      // First-appearance order: a tab already on screen never moves, and a newly
+      // installed plugin's tab is appended after the existing ones.
+      let sequence = [];
+      const ordered = (rows) => {
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        const result = sequence.filter((id) => byId.has(id)).map((id) => byId.get(id));
+        for (const row of rows) {
+          if (sequence.includes(row.id)) continue;
+          sequence.push(row.id);
+          result.push(row);
+        }
+        const present = new Set(rows.map((row) => row.id));
+        sequence = sequence.filter((id) => present.has(id));
+        return result;
+      };
       const unchanged = (left, right) =>
         left.length === right.length &&
         left.every((row, index) => {
@@ -254,7 +269,7 @@ window.__ModuleLoader__.load({
           return () => listeners.delete(listener);
         },
         refresh(force = false) {
-          const next = read();
+          const next = ordered(read());
           if (!force && unchanged(snapshot, next)) return;
           snapshot = next;
           for (const listener of [...listeners]) listener();
