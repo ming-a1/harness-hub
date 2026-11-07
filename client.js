@@ -240,20 +240,23 @@ window.__ModuleLoader__.load({
         rows.sort((left, right) => left.order - right.order);
         return rows;
       };
-      // First-appearance order: a tab already on screen never moves, and a newly
-      // installed plugin's tab is appended after the existing ones.
-      let sequence = [];
+      // Tab order is fixed for the panels this hub was built around, and every
+      // other panel is appended in the order it first appeared. Plugin modules
+      // register in whatever order the page happens to load them, so arrival
+      // order alone would reshuffle the strip on every reload.
+      const leading = ['session-cleanup', 'skill-gallery', 'token-vault'];
+      const firstSeen = new Map();
+      let seenCount = 0;
       const ordered = (rows) => {
-        const byId = new Map(rows.map((row) => [row.id, row]));
-        const result = sequence.filter((id) => byId.has(id)).map((id) => byId.get(id));
         for (const row of rows) {
-          if (sequence.includes(row.id)) continue;
-          sequence.push(row.id);
-          result.push(row);
+          if (firstSeen.has(row.id)) continue;
+          firstSeen.set(row.id, seenCount++);
         }
-        const present = new Set(rows.map((row) => row.id));
-        sequence = sequence.filter((id) => present.has(id));
-        return result;
+        const rank = (id) => {
+          const lead = leading.indexOf(id);
+          return lead >= 0 ? lead : leading.length + firstSeen.get(id);
+        };
+        return [...rows].sort((left, right) => rank(left.id) - rank(right.id));
       };
       const unchanged = (left, right) =>
         left.length === right.length &&
