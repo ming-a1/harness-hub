@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Plugin Hub",
-    "description": "One entry with three tabs — Session Cleanup, Skill Gallery and Token Vault: archive or delete sessions, browse and uninstall installed skills, and store tokens locally."
+    "description": "Collects the sidebar panels that other plugins register into one entry: a single sidebar icon, one tab per plugin, added on install and removed on uninstall."
   }
 }
