@@ -1,6 +1,6 @@
 {
   "name": "@local/harness-hub",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "private": true,
   "type": "module",
   "description": "Plugin Hub for DeepSeek Harness: one sidebar entry whose tabs are the panels other installed plugins contribute, loaded dynamically and never copied.",

@@ -237,26 +237,27 @@ window.__ModuleLoader__.load({
           seen.add(id);
           rows.push({ id, order: entry.options.order ?? 0, label: entry.options.label, panel });
         }
-        rows.sort((left, right) => left.order - right.order);
+        // order first, id second: a tie must not depend on module load order
+        rows.sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
         return rows;
       };
-      // Tab order is fixed for the panels this hub was built around, and every
-      // other panel is appended in the order it first appeared. Plugin modules
-      // register in whatever order the page happens to load them, so arrival
-      // order alone would reshuffle the strip on every reload.
-      const leading = ['session-cleanup', 'skill-gallery', 'token-vault'];
-      const firstSeen = new Map();
-      let seenCount = 0;
+      // Tab order: the first non-empty set is laid out by the plugin's own
+      // sidebar `order`, which is deterministic. From then on a tab keeps its
+      // place, so anything installed later is appended at the end instead of
+      // jumping in front. No plugin names are hard-coded here.
+      let sequence = [];
       const ordered = (rows) => {
+        if (sequence.length === 0) sequence = rows.map((row) => row.id);
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        const result = sequence.filter((id) => byId.has(id)).map((id) => byId.get(id));
         for (const row of rows) {
-          if (firstSeen.has(row.id)) continue;
-          firstSeen.set(row.id, seenCount++);
+          if (sequence.includes(row.id)) continue;
+          sequence.push(row.id);
+          result.push(row);
         }
-        const rank = (id) => {
-          const lead = leading.indexOf(id);
-          return lead >= 0 ? lead : leading.length + firstSeen.get(id);
-        };
-        return [...rows].sort((left, right) => rank(left.id) - rank(right.id));
+        const present = new Set(rows.map((row) => row.id));
+        sequence = sequence.filter((id) => present.has(id));
+        return result;
       };
       const unchanged = (left, right) =>
         left.length === right.length &&
