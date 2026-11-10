@@ -24,7 +24,7 @@
         "en": "Collects the sidebar panels that other plugins register into one entry: a single sidebar icon, one tab per plugin, added on install and removed on uninstall.",
         "zh": "把其它插件注册的侧栏面板收进同一个入口：侧栏只留一个图标，每个插件一个页签，装了就出现、卸了就消失。"
       },
-      "icon": "https://raw.githubusercontent.com/ming-a1/harness-hub/880267e9a3147005027f7fa193c30913de4a16da/icon.svg",
+      "icon": "https://raw.githubusercontent.com/ming-a1/harness-hub/0c49924fc3778d02e5bcbbdee9e0b189d4d45d3f/icon.svg",
       "author": "ming-a1",
       "homepage": "https://github.com/ming-a1/harness-hub",
       "repository": {
@@ -42,12 +42,12 @@
       },
       "versions": [
         {
-          "version": "2.0.5",
-          "publishTimestamp": 1794216074,
+          "version": "2.1.0",
+          "publishTimestamp": 1794317451,
           "source": {
             "type": "git",
             "url": "https://github.com/ming-a1/harness-hub",
-            "commit": "880267e9a3147005027f7fa193c30913de4a16da"
+            "commit": "0c49924fc3778d02e5bcbbdee9e0b189d4d45d3f"
           },
           "engines": {}
         }
