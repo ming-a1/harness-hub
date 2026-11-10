@@ -26,6 +26,7 @@ window.__ModuleLoader__.load({
       empty: '还没有可集成的面板。安装带侧栏面板的插件后，它会自动出现在这里。',
       'tab.failed': '这个面板渲染出错，其它页签仍可使用。',
       'tab.openStandalone': '单独打开',
+      'tab.dragHint': '拖动排序（聚焦后 Alt+←/→ 移动）',
       'tab.unsupported': '这个面板需要宿主自己渲染（它声明了子插槽），无法内嵌。',
     };
 
@@ -35,6 +36,7 @@ window.__ModuleLoader__.load({
       empty: 'Nothing to collect yet. A plugin with a sidebar panel shows up here automatically.',
       'tab.failed': 'This panel failed to render; other tabs keep working.',
       'tab.openStandalone': 'Open on its own',
+      'tab.dragHint': 'Drag to reorder (focus and press Alt+←/→)',
       'tab.unsupported': 'This panel needs the host renderer (it declares child slots) and cannot be embedded.',
     };
 
@@ -48,6 +50,10 @@ window.__ModuleLoader__.load({
       '.hub-tab:hover{color:var(--dsw-alias-label-primary)}',
       '.hub-tab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}',
       '.hub-tab-active,.hub-tab-active:hover{background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-weight:500;box-shadow:inset 0 0 0 .5px var(--dsw-alias-border-l2)}',
+      '.hub-tab{cursor:grab}',
+      '.hub-tab:active{cursor:grabbing}',
+      '.hub-tab-dragging{opacity:.45}',
+      '.hub-tab-drop{box-shadow:inset 2px 0 0 var(--dsw-alias-brand-primary)}',
       '.hub-body{flex:1;min-height:0;display:flex;flex-direction:column}',
       '.hub-pane{flex:1;min-height:0;display:flex;flex-direction:column}',
       '.hub-pane-hidden{display:none}',
@@ -241,23 +247,37 @@ window.__ModuleLoader__.load({
         rows.sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
         return rows;
       };
-      // Tab order: the first non-empty set is laid out by the plugin's own
-      // sidebar `order`, which is deterministic. From then on a tab keeps its
-      // place, so anything installed later is appended at the end instead of
-      // jumping in front. No plugin names are hard-coded here.
-      let sequence = [];
-      const ordered = (rows) => {
-        if (sequence.length === 0) sequence = rows.map((row) => row.id);
-        const byId = new Map(rows.map((row) => [row.id, row]));
-        const result = sequence.filter((id) => byId.has(id)).map((id) => byId.get(id));
-        for (const row of rows) {
-          if (sequence.includes(row.id)) continue;
-          sequence.push(row.id);
-          result.push(row);
+      // Tab order: a saved manual order wins; ids the user never moved keep the
+      // plugin's own sidebar `order` and are appended after the saved ones, so a
+      // newly installed plugin never jumps in front.
+      const storageKey = 'harness-hub.tab-order';
+      const loadOrder = () => {
+        try {
+          const raw = window.localStorage.getItem(storageKey);
+          const parsed = raw === null ? null : JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string' && id !== '') : [];
+        } catch {
+          return [];
         }
-        const present = new Set(rows.map((row) => row.id));
-        sequence = sequence.filter((id) => present.has(id));
-        return result;
+      };
+      let saved = loadOrder();
+      const persist = (ids) => {
+        saved = ids;
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(ids));
+        } catch {
+          // private mode or a full quota: the order stays for this page
+        }
+      };
+      const ordered = (rows) => {
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        const position = new Map(saved.map((id, index) => [id, index]));
+        const rank = (id) => (position.has(id) ? position.get(id) : saved.length + 1);
+        return [...rows].sort((left, right) => {
+          const delta = rank(left.id) - rank(right.id);
+          if (delta !== 0) return delta;
+          return left.order - right.order || left.id.localeCompare(right.id);
+        });
       };
       const unchanged = (left, right) =>
         left.length === right.length &&
@@ -271,6 +291,19 @@ window.__ModuleLoader__.load({
         subscribe(listener) {
           listeners.add(listener);
           return () => listeners.delete(listener);
+        },
+        /** Move one tab to an index, persist the manual order, and notify. */
+        move(id, toIndex) {
+          const ids = snapshot.map((row) => row.id);
+          const from = ids.indexOf(id);
+          if (from < 0) return;
+          const target = Math.max(0, Math.min(ids.length - 1, toIndex));
+          if (from === target) return;
+          ids.splice(from, 1);
+          ids.splice(target, 0, id);
+          persist(ids);
+          snapshot = ordered(read());
+          for (const listener of [...listeners]) listener();
         },
         refresh(force = false) {
           const next = ordered(read());
@@ -351,7 +384,11 @@ window.__ModuleLoader__.load({
         const rows = useSyncExternalStore(panels.subscribe, panels.getSnapshot);
         const slot = props !== null && typeof props === 'object' ? props : {};
         const [active, setActive] = useState(rows.length === 0 ? '' : rows[0].id);
+        const [dragging, setDragging] = useState('');
+        const [dropTarget, setDropTarget] = useState('');
         const current = rows.some((row) => row.id === active) ? active : (rows[0]?.id ?? '');
+        const indexOf = (id) => rows.findIndex((row) => row.id === id);
+        const move = (id, toIndex) => panels.move(id, toIndex);
         return h(
           'div',
           { className: 'hub-page' },
@@ -363,20 +400,73 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'hub-tabs', role: 'tablist' },
-              rows.map((row) =>
-                h(
+              rows.map((row) => {
+                const index = indexOf(row.id);
+                const classNames = ['hub-tab'];
+                if (row.id === current) classNames.push('hub-tab-active');
+                if (row.id === dragging) classNames.push('hub-tab-dragging');
+                if (row.id === dropTarget && row.id !== dragging) classNames.push('hub-tab-drop');
+                return h(
                   'button',
                   {
                     key: row.id,
                     type: 'button',
                     role: 'tab',
+                    draggable: true,
+                    title: t('tab.dragHint'),
                     'aria-selected': row.id === current,
-                    className: row.id === current ? 'hub-tab hub-tab-active' : 'hub-tab',
+                    'data-tab-id': row.id,
+                    className: classNames.join(' '),
                     onClick: () => setActive(row.id),
+                    onDragStart: (event) => {
+                      setDragging(row.id);
+                      try {
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', row.id);
+                      } catch {
+                        // older engines reject custom payloads; the state is enough
+                      }
+                    },
+                    onDragOver: (event) => {
+                      if (dragging === '') return;
+                      event.preventDefault();
+                      try {
+                        event.dataTransfer.dropEffect = 'move';
+                      } catch {
+                        // ignore
+                      }
+                      if (dropTarget !== row.id) setDropTarget(row.id);
+                    },
+                    onDragLeave: () => {
+                      if (dropTarget === row.id) setDropTarget('');
+                    },
+                    onDrop: (event) => {
+                      event.preventDefault();
+                      const id = dragging === '' ? event.dataTransfer.getData('text/plain') : dragging;
+                      setDragging('');
+                      setDropTarget('');
+                      if (id === '' || id === row.id) return;
+                      move(id, index);
+                      setActive(id);
+                    },
+                    onDragEnd: () => {
+                      setDragging('');
+                      setDropTarget('');
+                    },
+                    onKeyDown: (event) => {
+                      if (!event.altKey) return;
+                      if (event.key === 'ArrowLeft') {
+                        event.preventDefault();
+                        move(row.id, index - 1);
+                      } else if (event.key === 'ArrowRight') {
+                        event.preventDefault();
+                        move(row.id, index + 1);
+                      }
+                    },
                   },
                   panelLabel(row.label, row.id),
-                ),
-              ),
+                );
+              }),
             ),
           ),
           h(
